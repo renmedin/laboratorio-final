@@ -2,7 +2,7 @@ name: Pipeline Laboratorio final curso DevSecOps
 on:
   push:
     branches:
-      - feature-clase1
+      - feature-labfinal
 
 jobs:
   SAST:
