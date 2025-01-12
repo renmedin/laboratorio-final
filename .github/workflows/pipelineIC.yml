@@ -11,3 +11,17 @@ jobs:
     - name: Aqui compilamos
       run: | 
         echo 'Aqui compilamos'
+  TEST:
+    runs-on: ubuntu-latest
+    steps: 
+
+    - name: Aqui probamos
+      run: | 
+        echo 'Aqui probamos'  
+  DEPLOY:
+    runs-on: ubuntu-latest
+    steps: 
+
+    - name: Deploy Dev
+      run: | 
+        echo 'Aqui desplegamos'
