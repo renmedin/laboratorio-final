@@ -69,7 +69,7 @@ jobs:
               #exit 1
             fi
           else
-            echo "El proyecto cumple con el Quality Gate y no tiene vulnerabilidades críticas. Continuando sin problemas."
+            echo "El proyecto cumple con el Quality Gate y no presenta vulnerabilidades críticas. Continuando sin problemas."
           fi
 
   SCA:
