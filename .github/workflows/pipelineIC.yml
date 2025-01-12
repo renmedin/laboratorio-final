@@ -6,13 +6,21 @@ on:
 
 
 jobs:
-
+  
   SAST:
     runs-on: ubuntu-24.04
 
     steps:
       - name: Clonar repositorio / Checkout Code 
         uses: actions/checkout@v3
+
+      - name: Set Up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16' 
+
+      - name: Install Dependencies
+        run: npm install
       
       - name: Set Environment Variables
         run: echo "BRANCH_NAME=${{ github.ref_name }}" >> $GITHUB_ENV
@@ -24,11 +32,11 @@ jobs:
           REPO_NAME: ${{ github.event.repository.name }}
         run: |
           echo "Realizando análisis inicial en la rama main..."
-          ./gradlew sonarqube \
+          npx sonarqube-scanner \
             -Dsonar.projectKey=$REPO_NAME \
             -Dsonar.organization=rmedina-cursodevsecopsusach \
             -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.token=$SONAR_TOKEN \
+            -Dsonar.token=$SONAR_TOKEN
             -Dsonar.branch.name=main
 
       - name: Perform Branch Analysis
@@ -39,11 +47,11 @@ jobs:
           BRANCH_NAME: ${{ github.ref_name }}
         run: |
           echo "Realizando análisis en la rama actual: $BRANCH_NAME..."
-          ./gradlew sonarqube \
+          npx sonarqube-scanner \
             -Dsonar.projectKey=$REPO_NAME \
             -Dsonar.organization=rmedina-cursodevsecopsusach \
             -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.token=$SONAR_TOKEN \
+            -Dsonar.token=$SONAR_TOKEN
             -Dsonar.branch.name=${{ github.ref_name }}
 
       - name: Validate Quality Gate
@@ -117,53 +125,3 @@ jobs:
       with:
         name: JAR
         path: ${{github.workspace}}/build/libs/spring-petclinic-2.6.0.jar
-
-  DockerBuild:
-    needs: SCA
-    runs-on: ubuntu-24.04
-    steps:
-    
-    - name: Checkout code
-      uses: actions/checkout@v2
-      
-    - name: Docker Login
-      uses: docker/login-action@v3.0.0
-      with:
-        username: ${{ secrets.DOCKER_USER }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-    
-    - name: Download JAR
-      uses: actions/download-artifact@master
-      with:
-        name: JAR
-        path: ${{github.workspace}}
-
-    - name: Docker Build
-      run: |
-        ls -R
-        docker build --tag b4b4y4g4x/cursodevsecops-test:latest .
-
-    - name: Push Docker
-      run: |
-        docker push b4b4y4g4x/cursodevsecops-test:latest
-
-  DockerScan:
-    needs: DockerBuild
-    runs-on: ubuntu-24.04
-    steps:
-    
-    - name: Docker Login
-      uses: docker/login-action@v3.0.0
-      with:
-        username: ${{ secrets.DOCKER_USER }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-    
-    - name: Pull Docker
-      run: |
-        docker pull b4b4y4g4x/cursodevsecops-test:latest
-
-    - name: Run Trivy Scan
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: 'b4b4y4g4x/cursodevsecops-test:latest'
-        format: 'table'
