@@ -4,24 +4,12 @@ on:
     branches:
       - feature-labfinal
 jobs:
-  BUILD:
+  SAST:
     runs-on: ubuntu-latest
     steps: 
 
-    - name: Aqui compilamos
-      run: | 
-        echo 'Aqui compilamos'
-  TEST:
-    runs-on: ubuntu-latest
-    steps: 
-
-    - name: Aqui probamos
-      run: | 
-        echo 'Aqui probamos'  
-  DEPLOY:
-    runs-on: ubuntu-latest
-    steps: 
-
-    - name: Deploy Dev
-      run: | 
-        echo 'Aqui desplegamos'
+      - name: Set up JDK 17
+        uses: action/setup-java@v2
+        with:
+          java-version: '17'
+          distribution: 'adopt'
