@@ -19,3 +19,13 @@ jobs:
       
       - name: Sec Enviroment Variables
         run: echo "BRANCH_NAME= ${{ github.ref_name }}" >> $GITHUB_ENV
+
+      - name: validar y configurar build.gradle
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: | 
+          if [ -f "build.gradle"];
+            then echo "Encontró el archivo"
+          else "No encontró el archivo"
+          exit 1
+          fi
