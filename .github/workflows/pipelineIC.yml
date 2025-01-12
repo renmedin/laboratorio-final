@@ -79,7 +79,7 @@ jobs:
       #       "https://sonarcloud.io/api/projects/create" \
       #       -d "name=$REPO_NAME" \
       #       -d "project=$REPO_NAME" \
-      #       -d "organization=devsecopsusach" \
+      #       -d "organization=rmedina-cursodevsecopsusach" \
       #       -d "visibility=public")
 
       #     if [ "$create_response" -ne 201 ]; then
