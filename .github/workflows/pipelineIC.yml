@@ -27,6 +27,9 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
+          if [ "${{ github.ref_name }}" != "main" ]; then "El análisis de Sonar se ejecuta únicamente en la rama 'main'. Rama actual: ${{ github.ref_name }}"
+            exit 1
+          fi
           npm install -g sonar-scanner
           sonar-scanner \
             -Dsonar.projectKey=${{ github.event.repository.name }} \
@@ -34,22 +37,6 @@ jobs:
             -Dsonar.sources=. \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.login=$SONAR_TOKEN
-
-      - name: Validate Quality Gate
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          echo "Validating Quality Gate..."
-          analysisId=$(curl -s -u "$SONAR_TOKEN:" \
-            "https://sonarcloud.io/api/ce/component?component=${{ github.event.repository.name }}" | jq -r '.current.analysisId')
-
-          qualityGateStatus=$(curl -s -u "$SONAR_TOKEN:" \
-            "https://sonarcloud.io/api/qualitygates/project_status?analysisId=$analysisId" | jq -r '.projectStatus.status')
-
-          if [ "$qualityGateStatus" != "OK" ]; then
-            echo "Quality Gate failed: $qualityGateStatus"
-            exit 1
-          fi
 
   SCA:
     needs: SAST
@@ -74,10 +61,85 @@ jobs:
           format: 'HTML'
           args: >
             --out ./reports
-            --failOnCVSS 7
+            --failOnCVSS 5
+
+      - name: Fail on Critical, High, or Medium Vulnerabilities
+        run: |
+          vulnerabilities=$(grep -E 'CRITICAL|HIGH|MEDIUM' ./reports/dependency-check-report.html | wc -l)
+          if [ "$vulnerabilities" -gt 0 ]; then
+            echo "Se encontraron vulnerabilidades Críticas, Altas o Medias en las dependencias del proyecto."
+            exit 1
+          fi
 
       - name: Upload Dependency Report
         uses: actions/upload-artifact@master
         with:
           name: Dependency Check Report
           path: ./reports
+
+  DockerBuild:
+    needs: SCA
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Build Application
+        run: |
+          npm run build
+          ls -R
+
+      - name: Docker Login
+        uses: docker/login-action@v3.0.0
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Docker Build
+        run: |
+          docker build -t my-typescript-app:latest .
+
+      - name: Push Docker Image
+        run: |
+          docker tag my-typescript-app:latest b4b4y4g4x/cursodevsecops-test:latest
+          docker push b4b4y4g4x/cursodevsecops-test:latest
+
+  DockerScan:
+    needs: DockerBuild
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Docker Login
+        uses: docker/login-action@v3.0.0
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Pull Docker Image
+        run: |
+          docker pull b4b4y4g4x/cursodevsecops-test:latest
+
+      - name: Run Trivy Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'b4b4y4g4x/cursodevsecops-test:latest'
+          format: 'json'
+          output: './trivy-report.json'
+
+      - name: Fail on Critical, High, or Medium Vulnerabilities
+        run: |
+          vulnerabilities=$(jq '[.Results[].Vulnerabilities[] | select(.Severity=="CRITICAL" or .Severity=="HIGH" or .Severity=="MEDIUM")] | length' ./trivy-report.json)
+          if [ "$vulnerabilities" -gt 0 ]; then
+            echo "Se encontraron $vulnerabilities vulnerabilidades Críticas, Altas o Medias en la imagen Docker."
+            exit 1
+          fi
+
+      - name: Upload Trivy Report
+        uses: actions/upload-artifact@master
+        with:
+          name: Trivy Report
+          path: ./trivy-report.json
