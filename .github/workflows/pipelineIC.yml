@@ -26,6 +26,7 @@ jobs:
         run: | 
           if [ -f "build.gradle"];
             then echo "Encontró el archivo"
-          else "No encontró el archivo"
+          else 
+            echo "No encontró el archivo"
           exit 1
           fi
