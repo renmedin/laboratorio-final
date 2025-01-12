@@ -1,127 +1,83 @@
-name: Pipeline Laboratorio final curso DevSecOps
+name: Pipeline Laboratorio Final DevSecOps
 on:
   push:
     branches:
       - feature-labfinal
 
-
 jobs:
-  
   SAST:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Clonar repositorio / Checkout Code 
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Set Up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '16' 
-
-      - name: Install Dependencies
-        run: npm install
-      
       - name: Set Environment Variables
         run: echo "BRANCH_NAME=${{ github.ref_name }}" >> $GITHUB_ENV
 
-      - name: Perform Initial Analysis (if Project Created)
-        if: env.project_created == 'true'
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          REPO_NAME: ${{ github.event.repository.name }}
-        run: |
-          echo "Realizando análisis inicial en la rama main..."
-          npx sonarqube-scanner \
-            -Dsonar.projectKey=$REPO_NAME \
-            -Dsonar.organization=rmedina-cursodevsecopsusach \
-            -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.token=$SONAR_TOKEN
-            -Dsonar.branch.name=main
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
 
-      - name: Perform Branch Analysis
-        if: env.project_created == 'false'
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run SAST with SonarCloud
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          REPO_NAME: ${{ github.event.repository.name }}
-          BRANCH_NAME: ${{ github.ref_name }}
         run: |
-          echo "Realizando análisis en la rama actual: $BRANCH_NAME..."
-          npx sonarqube-scanner \
-            -Dsonar.projectKey=$REPO_NAME \
+          npm install -g sonar-scanner
+          sonar-scanner \
+            -Dsonar.projectKey=${{ github.event.repository.name }} \
             -Dsonar.organization=rmedina-cursodevsecopsusach \
+            -Dsonar.sources=. \
             -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.token=$SONAR_TOKEN
-            -Dsonar.branch.name=${{ github.ref_name }}
+            -Dsonar.login=$SONAR_TOKEN
 
       - name: Validate Quality Gate
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          REPO_NAME: ${{ github.event.repository.name }}
         run: |
-          echo "Validando el estado del Quality Gate..."
+          echo "Validating Quality Gate..."
           analysisId=$(curl -s -u "$SONAR_TOKEN:" \
-            "https://sonarcloud.io/api/ce/component?component=$REPO_NAME" | jq -r '.current.analysisId')
+            "https://sonarcloud.io/api/ce/component?component=${{ github.event.repository.name }}" | jq -r '.current.analysisId')
 
           qualityGateStatus=$(curl -s -u "$SONAR_TOKEN:" \
             "https://sonarcloud.io/api/qualitygates/project_status?analysisId=$analysisId" | jq -r '.projectStatus.status')
 
           if [ "$qualityGateStatus" != "OK" ]; then
-            echo "El proyecto no cumple con el Quality Gate: $qualityGateStatus."
-            echo "Verificando vulnerabilidades críticas..."
-            vulnerabilities=$(curl -s -u "$SONAR_TOKEN:" \
-              "https://sonarcloud.io/api/issues/search?componentKeys=$REPO_NAME&types=VULNERABILITY&severities=CRITICAL,BLOCKER" | jq -r '.total')
-
-            if [ "$vulnerabilities" -gt 0 ]; then
-              echo "Se encontraron $vulnerabilities vulnerabilidades críticas. El proyecto no cumple con los estándares de seguridad."
-              #exit 1
-            fi
-          else
-            echo "El proyecto cumple con el Quality Gate y no tiene vulnerabilidades críticas. Continuando sin problemas."
+            echo "Quality Gate failed: $qualityGateStatus"
+            exit 1
           fi
 
   SCA:
     needs: SAST
     runs-on: ubuntu-24.04
     steps:
-    
-    - name: Clonar repositorio / Checkout Code 
-      uses: actions/checkout@v2
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-    - name: Build
-      run: |
-        if [ -f "build.gradle" ]; then
-          echo "Proyecto utiliza archivo build.gradle"
-          echo "Se habilita permiso de ejecución de archivo gradlew"
-          chmod 777 gradlew
-          ./gradlew build
-          ls -R
-        else 
-          echo "Otro tipo de proyecto"
-        fi
-    
-    - name: Dependency Check
-      uses: dependency-check/Dependency-Check_Action@1.1.0
-      env:
-        JAVA_HOME: /opt/jdk
-      id: Depcheck
-      with:
-        project: '${{ github.event.repository.name }}'
-        path: '.'
-        format: 'HTML'
-        args: >
-          --out ./reports
-          --failOnCVSS 7
-          --enableRetired
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
 
-    - name: Upload Test Result
-      uses: actions/upload-artifact@master
-      with:
-        name: Depcheck Report
-        path: ./reports
-    
-    - name: Upload JAR
-      uses: actions/upload-artifact@master
-      with:
-        name: JAR
-        path: ${{github.workspace}}/build/libs/spring-petclinic-2.6.0.jar
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Dependency Check
+        uses: dependency-check/Dependency-Check_Action@1.1.0
+        with:
+          project: '${{ github.event.repository.name }}'
+          path: './'
+          format: 'HTML'
+          args: >
+            --out ./reports
+            --failOnCVSS 7
+
+      - name: Upload Dependency Report
+        uses: actions/upload-artifact@master
+        with:
+          name: Dependency Check Report
+          path: ./reports
