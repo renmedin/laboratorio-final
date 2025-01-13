@@ -83,7 +83,7 @@ jobs:
 
             if [ "$vulnerabilities" -gt 0 ]; then
               echo "Se encontraron $vulnerabilities vulnerabilidades. El proyecto no cumple con los estándares de seguridad."
-              exit 1
+              exit 1 #Se quiebra el pipeline
             else
               echo "No se encontraron vulnerabilidades ($vulnerabilities vulnerabilidades) . El proyecto cumple con el Quality Gate." 
             fi
@@ -133,17 +133,11 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USER }}  # Usuario de Docker
           password: ${{ secrets.DOCKER_PASSWORD }}  # Contraseña de Docker
-      
-      - name: Download Repositorio Docker  
-        uses: actions/download-artifact@master
-        with:
-          name: BUILD DOCKER
-          path: ${{github.workspace}}
+
 
       - name: Docker Build
         run: |
-          ls -R
-          docker build --tag rmedinam91/laboratorio-final-devsecops:latest .
+          docker build -t rmedinam91/laboratorio-final-devsecops:latest .
 
       - name: Push Docker
         run: |
