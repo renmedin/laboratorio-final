@@ -63,25 +63,6 @@ jobs:
             echo "project_created=false" >> $GITHUB_ENV
           fi
 
-
-      - name: Install Sonar Scanner
-        run: |
-          # Instalar sonar-scanner-cli
-          npm install -g sonar-scanner-cli
-
-      - name: Run SAST with SonarCloud
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          sonar-scanner \
-            -Dsonar.projectKey=${{ github.event.repository.name }} \
-            -Dsonar.organization=rmedina-cursodevsecopsusach \
-            -Dsonar.sources=. \
-            -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.login=$SONAR_TOKEN \
-            -Dsonar.branch.name=main  # Analiza la rama "main"
-
-
       - name: Quality Gate
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN}}
@@ -104,7 +85,7 @@ jobs:
               echo "Se encontraron $vulnerabilities vulnerabilidades críticas. El proyecto no cumple con los estándares de seguridad."
               exit 1
             else
-              echo "No se encontraron vulnerabilidades críticas. El proyecto cumple con el Quality Gate." 
+              echo "No se encontraron vulnerabilidades críticas ($vulnerabilities vulnerabilidades) . El proyecto cumple con el Quality Gate." 
             fi
           fi
 
