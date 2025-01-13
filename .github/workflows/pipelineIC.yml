@@ -33,7 +33,7 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           REPO_NAME: ${{ github.event.repository.name }}
-          echo "$REPO_NAME"
+        run: echo "$REPO_NAME"
 
         run: |
          echo "Verificando si el proyecto $REPO_NAME existe en SonarCloud..."
