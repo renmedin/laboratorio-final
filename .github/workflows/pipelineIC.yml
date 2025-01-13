@@ -93,6 +93,7 @@ jobs:
             -Dsonar.token=$SONAR_TOKEN \
             -Dsonar.branch.name=${{ github.ref_name }}
 
+
       - name: Validate Quality Gate
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -118,7 +119,24 @@ jobs:
           else
             echo "El proyecto cumple con el Quality Gate y no tiene vulnerabilidades críticas. Continuando sin problemas."
           fi
+      - name: Validate Quality Gate
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          echo "Validating SonarCloud Quality Gate..."
+          analysisId=$(curl -s -u "$SONAR_TOKEN:" \
+            "https://sonarcloud.io/api/ce/component?component=$REPO_NAME" | jq -r '.current.analysisId')
 
+          qualityGateStatus=$(curl -s -u "$SONAR_TOKEN:" \
+            "https://sonarcloud.io/api/qualitygates/project_status?analysisId=$analysisId" | jq -r '.projectStatus.status')
+
+          if [ "$qualityGateStatus" != "OK" ]; then
+            echo "Quality Gate failed: $qualityGateStatus"
+            exit 1
+          else
+            echo "Quality Gate passed."
+          fi
 
   SCA:
       needs: SAST
