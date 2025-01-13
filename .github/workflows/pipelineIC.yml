@@ -120,7 +120,7 @@ jobs:
 
 
 
-  DockerBuild:
+  Docker-Build:
       needs: SCA  # Depende del análisis SCA
       runs-on: ubuntu-24.04
       steps:
