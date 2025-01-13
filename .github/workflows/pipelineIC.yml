@@ -33,37 +33,36 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           REPO_NAME: ${{ github.event.repository.name }}
-        run: echo "$REPO_NAME"
-
         run: |
-         echo "Verificando si el proyecto $REPO_NAME existe en SonarCloud..."
-         response=$(curl -s -o /dev/null -w "%{http_code}" -u "$SONAR_TOKEN:" \
+          echo "$REPO_NAME"
+          echo "Verificando si el proyecto $REPO_NAME existe en SonarCloud..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" -u "$SONAR_TOKEN:" \
            "https://sonarcloud.io/api/projects/search?projects=$REPO_NAME")
-         echo "$response"  
+          echo "$response"  
 
-         if [ "$response" -ne 200 ]; then
-           echo "El proyecto no existe. Creándolo en SonarCloud..."
-           create_response=$(curl -s -w "%{http_code}" -o /dev/null -X POST -u "$SONAR_TOKEN:" \
-             "https://sonarcloud.io/api/projects/create" \
-             -d "name=$REPO_NAME" \
-             -d "project=$REPO_NAME" \
-             -d "organization=$ORG_NAME" \
-             -d "visibility=public")
-           if [ "$create_response" -ne 201 ]; then
-             echo "Proyecto creado exitosamente (HTTP Response: $create_response)."
-           fi
+          if [ "$response" -ne 200 ]; then
+            echo "El proyecto no existe. Creándolo en SonarCloud..."
+            create_response=$(curl -s -w "%{http_code}" -o /dev/null -X POST -u "$SONAR_TOKEN:" \
+              "https://sonarcloud.io/api/projects/create" \
+              -d "name=$REPO_NAME" \
+              -d "project=$REPO_NAME" \
+              -d "organization=$ORG_NAME" \
+              -d "visibility=public")
+            if [ "$create_response" -ne 201 ]; then
+              echo "Proyecto creado exitosamente (HTTP Response: $create_response)."
+            fi
 
-           echo "Estableciendo la rama [$BRANCH_NAME] como predeterminada..."
-           curl -s -f -X POST -u "$SONAR_TOKEN:" \
-             "https://sonarcloud.io/api/project_branches/rename" \
-             -d "name=$BRANCH_NAME" \
-             -d "project=$REPO_NAME"
+            echo "Estableciendo la rama [$BRANCH_NAME] como predeterminada..."
+            curl -s -f -X POST -u "$SONAR_TOKEN:" \
+              "https://sonarcloud.io/api/project_branches/rename" \
+              -d "name=$BRANCH_NAME" \
+              -d "project=$REPO_NAME"
 
-           echo "project_created=true" >> $GITHUB_ENV
-         else
-           echo "El proyecto ya existe en SonarCloud."
-           echo "project_created=false" >> $GITHUB_ENV
-         fi
+            echo "project_created=true" >> $GITHUB_ENV
+          else
+            echo "El proyecto ya existe en SonarCloud."
+            echo "project_created=false" >> $GITHUB_ENV
+          fi
 
       - name: Perform Initial Analysis (if Project Created)
         if: env.project_created == 'true'
