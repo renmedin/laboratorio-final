@@ -23,8 +23,10 @@ jobs:
           echo "ORG_NAME=nhuly-devsecops" >> $GITHUB_ENV
 
 
-      - name: Variable
-        run: echo "$BRANCH_NAME"
+      - name: Variables
+        run: |
+          echo "$BRANCH_NAME"
+          echo "$REPO_NAME"
 
 
       #Apoyo ayudantia
