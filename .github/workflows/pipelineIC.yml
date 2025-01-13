@@ -2,7 +2,7 @@ name: Pipeline Laboratorio Final DevSecOps
 on:
   push:
     branches:
-      - feature-labfinal # El pipeline se ejecuta en la rama 'feature-labfinal'
+      - feature-labfinal # El pipeline se ejecuta en la rama: 'feature-labfinal'
 
 jobs:
   SAST:
@@ -164,4 +164,3 @@ jobs:
         with:
           image-ref: 'rmedinam91/laboratorio-final-devsecops:latest'
           format: 'table'
-        
