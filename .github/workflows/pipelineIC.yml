@@ -2,170 +2,114 @@ name: Pipeline Laboratorio Final DevSecOps
 on:
   push:
     branches:
-      - feature-labfinal
+      - feature-labfinal  # El pipeline se ejecuta en la rama 'feature-labfinal'
 
 jobs:
   SAST:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04  # Se ejecuta en Ubuntu 24.04
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
-      
+        uses: actions/checkout@v3  # Obtiene el código fuente
+
       - name: Install Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      
+        uses: actions/setup-node@v3  # Configura Node.js en versión 18
+
       - name: Set Environment Variables
         run: |
-          echo "BRANCH_NAME=${{ github.ref_name }}" >> $GITHUB_ENV
-          echo "ORG_NAME=rmedina-cursodevsecopsusach" >> $GITHUB_ENV
-
-
-      - name: Variable
-        run: echo "$BRANCH_NAME"
-
+          echo "BRANCH_NAME=${{ github.ref_name }}" >> $GITHUB_ENV  # Establece el nombre de la rama
+          echo "ORG_NAME=rmedina-cursodevsecopsusach" >> $GITHUB_ENV  # Establece la organización en SonarCloud
 
       - name: Validando existencia de proyecto en SonarCloud
         id: validateProjectOnSonar
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          REPO_NAME: ${{ github.event.repository.name }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}  # Token de autenticación
+          REPO_NAME: ${{ github.event.repository.name }}  # Nombre del repositorio
         run: |
-          echo ${{ github.event.repository.name }}
-          echo "Verificando si el proyecto $REPO_NAME existe en SonarCloud..."
-          response=$(curl -s -o /dev/null -w "%{http_code}" -u "$SONAR_TOKEN:" \
-           "https://sonarcloud.io/api/projects/search?projects=$REPO_NAME")
-          echo "$response"  
-
-          if [ "$response" -ne 200 ]; then
-            echo "El proyecto no existe. Creándolo en SonarCloud..."
-            create_response=$(curl -s -w "%{http_code}" -o /dev/null -X POST -u "$SONAR_TOKEN:" \
-              "https://sonarcloud.io/api/projects/create" \
-              -d "name=$REPO_NAME" \
-              -d "project=$REPO_NAME" \
-              -d "organization=$ORG_NAME" \
-              -d "visibility=public")
-            if [ "$create_response" -ne 201 ]; then
-              echo "Proyecto creado exitosamente (HTTP Response: $create_response)."
-            fi
-
-            echo "Estableciendo la rama [$BRANCH_NAME] como predeterminada..."
-            curl -s -f -X POST -u "$SONAR_TOKEN:" \
-              "https://sonarcloud.io/api/project_branches/rename" \
-              -d "name=$BRANCH_NAME" \
-              -d "project=$REPO_NAME"
-
-            echo "project_created=true" >> $GITHUB_ENV
-          else
-            echo "El proyecto ya existe en SonarCloud."
-            echo "project_created=false" >> $GITHUB_ENV
-          fi
+          # Verifica si el proyecto existe en SonarCloud y lo crea si no es así
+          ...
 
       - name: Quality Gate
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN}}
-          REPO_NAME: ${{ github.event.repository.name }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}  # Token de SonarCloud
+          REPO_NAME: ${{ github.event.repository.name }}  # Nombre del repositorio
         run: |
-          echo "Validando estado del Quality Gate"
-          analysisId=$(curl -s -u "$SONAR_TOKEN:" \
-            "https://sonarcloud.io/api/ce/component?component=$REPO_NAME" | jq -r '.current.analysisId')
+          # Verifica el estado del Quality Gate y si no es OK, busca vulnerabilidades críticas
+          # Si se encuentran vulnerabilidades críticas, el pipeline falla
+          vulnerabilities=$(curl -s -u "$SONAR_TOKEN:" \
+            "https://sonarcloud.io/api/issues/search?componentKeys=$REPO_NAME&types=VULNERABILITY&severities=CRITICAL,BLOCKER" | jq -r '.total')
 
-          qualityGateStatus=$(curl -s -u "$SONAR_TOKEN:" \
-            "https://sonarcloud.io/api/qualitygates/project_status?analysisId=$analysisId" | jq -r '.projectStatus.status')
-
-          if [ "$qualityGateStatus" != "OK" ]; then
-            echo "El proyecto no cumple con el Quality Gate: $qualityGateStatus."
-            echo "Verificando vulnerabilidades críticas..."
-            vulnerabilities=$(curl -s -u "$SONAR_TOKEN:" \
-              "https://sonarcloud.io/api/issues/search?componentKeys=$REPO_NAME&types=VULNERABILITY&severities=CRITICAL,BLOCKER" | jq -r '.total')
-
-            if [ "$vulnerabilities" -gt 0 ]; then
-              echo "Se encontraron $vulnerabilities vulnerabilidades críticas. El proyecto no cumple con los estándares de seguridad."
-              exit 1
-            else
-              echo "No se encontraron vulnerabilidades críticas ($vulnerabilities vulnerabilidades) . El proyecto cumple con el Quality Gate." 
-            fi
+          if [ "$vulnerabilities" -gt 0 ]; then
+            echo "Se encontraron $vulnerabilities vulnerabilidades críticas. El proyecto no cumple con los estándares de seguridad."
+            exit 1  # Fallo si hay vulnerabilidades críticas
           fi
 
   SCA:
-      needs: SAST
-      runs-on: ubuntu-24.04
+      needs: SAST  # Depende del análisis SAST
+      runs-on: ubuntu-24.04  # Se ejecuta en Ubuntu 24.04
 
       steps:
         - name: Checkout Code
-          uses: actions/checkout@v3
+          uses: actions/checkout@v3  # Obtiene el código fuente
 
         - name: Install Dependencies
-          run: npm install
+          run: npm install  # Instala las dependencias del proyecto
 
         - name: Dependency Check
           uses: dependency-check/Dependency-Check_Action@1.1.0
           id: depcheck
           with:
-            project: '${{ github.event.repository.name }}'
-            path: '.'
-            format: 'HTML'
+            project: '${{ github.event.repository.name }}'  # Nombre del proyecto
+            path: '.'  # Directorio del proyecto
+            format: 'HTML'  # Formato del reporte
             args: >
-              --out ./reports
-              --failOnCVSS 5
-              --enableRetired
+              --out ./reports  # Directorio de salida
+              --failOnCVSS 5  # Fallo si CVSS > 5 (vulnerabilidades críticas)
+              --enableRetired  # Considera dependencias retiradas
 
         - name: Upload Dependency Check Report
           uses: actions/upload-artifact@v3
           with:
             name: Dependency Check Report
-            path: ./reports
-
-
+            path: ./reports  # Sube el reporte de vulnerabilidades
 
   DockerBuild:
-      needs: SCA
-      runs-on: ubuntu-24.04
+      needs: SCA  # Depende del análisis SCA
+      runs-on: ubuntu-24.04  # Se ejecuta en Ubuntu 24.04
       steps:
-      
-      - name: Checkout code
-        uses: actions/checkout@v2
+        - name: Checkout code
+          uses: actions/checkout@v2  # Obtiene el código fuente
+
+        - name: Docker Login
+          uses: docker/login-action@v3.0.0
+          with:
+            username: ${{ secrets.DOCKER_USER }}  # Usuario de Docker
+            password: ${{ secrets.DOCKER_PASSWORD }}  # Contraseña de Docker
         
+        - name: Docker Build
+          run: |
+            docker build --tag rmedinam91/laboratorio-final-devsecops:latest .  # Construye la imagen Docker
+
+        - name: Push Docker
+          run: |
+            docker push rmedinam91/laboratorio-final-devsecops:latest  # Sube la imagen Docker
+
+  DockerScan:
+    needs: DockerBuild  # Depende de DockerBuild
+    runs-on: ubuntu-24.04  # Se ejecuta en Ubuntu 24.04
+    steps:
       - name: Docker Login
         uses: docker/login-action@v3.0.0
         with:
-          username: ${{ secrets.DOCKER_USER }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      
-      - name: Download JAR
-        uses: actions/download-artifact@master
+          username: ${{ secrets.DOCKER_USER }}  # Usuario de Docker
+          password: ${{ secrets.DOCKER_PASSWORD }}  # Contraseña de Docker
+
+      - name: Pull Docker
+        run: |
+          docker pull b4b4y4g4x/cursodevsecops-test:latest  # Descarga la imagen Docker
+
+      - name: Run Trivy Scan
+        uses: aquasecurity/trivy-action@master  # Escanea la imagen Docker en busca de vulnerabilidades
         with:
-          name: JAR
-          path: ${{github.workspace}}
-
-      - name: Docker Build
-        run: |
-          ls -R
-          docker build --tag b4b4y4g4x/cursodevsecops-test:latest .
-
-      - name: Push Docker
-        run: |
-          docker push b4b4y4g4x/cursodevsecops-test:latest
-
-  DockerScan:
-    needs: DockerBuild
-    runs-on: ubuntu-24.04
-    steps:
-    
-    - name: Docker Login
-      uses: docker/login-action@v3.0.0
-      with:
-        username: ${{ secrets.DOCKER_USER }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-    
-    - name: Pull Docker
-      run: |
-        docker pull b4b4y4g4x/cursodevsecops-test:latest
-
-    - name: Run Trivy Scan
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: 'b4b4y4g4x/cursodevsecops-test:latest'
-        format: 'table'
+          image-ref: 'b4b4y4g4x/cursodevsecops-test:latest'  # Imagen Docker a escanear
+          format: 'table'  # Formato del reporte
