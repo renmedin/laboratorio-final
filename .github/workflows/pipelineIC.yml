@@ -64,6 +64,10 @@ jobs:
           fi
 
 
+      - name: Install Sonar Scanner
+        run: |
+          # Instalar sonar-scanner-cli
+          npm install -g sonar-scanner-cli
 
       - name: Run SAST with SonarCloud
         env:
