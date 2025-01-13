@@ -27,9 +27,9 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          if [ "${{ github.ref_name }}" != "main" ]; then "El análisis de Sonar se ejecuta únicamente en la rama 'main'. Rama actual: ${{ github.ref_name }}"
-            exit 1
-          fi
+          #if [ "${{ github.ref_name }}" != "main" ]; then "El análisis de Sonar se ejecuta únicamente en la rama 'main'. Rama actual: ${{ github.ref_name }}"
+          #  exit 1
+          #fi
           npm install -g sonar-scanner
           sonar-scanner \
             -Dsonar.projectKey=${{ github.event.repository.name }} \
@@ -37,7 +37,7 @@ jobs:
             -Dsonar.sources=. \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.login=$SONAR_TOKEN
-
+            -Dsonar.branch.name=main
   SCA:
     needs: SAST
     runs-on: ubuntu-24.04
