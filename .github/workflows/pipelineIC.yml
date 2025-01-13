@@ -79,13 +79,13 @@ jobs:
             echo "El proyecto no cumple con el Quality Gate: $qualityGateStatus."
             echo "Verificando vulnerabilidades críticas..."
             vulnerabilities=$(curl -s -u "$SONAR_TOKEN:" \
-              "https://sonarcloud.io/api/issues/search?componentKeys=$REPO_NAME&types=VULNERABILITY&severities=CRITICAL,BLOCKER" | jq -r '.total')
+              "https://sonarcloud.io/api/issues/search?componentKeys=$REPO_NAME&types=VULNERABILITY&severity=CRITICAL&severity=HIGH&severity=MEDIUM" | jq -r '.total')
 
             if [ "$vulnerabilities" -gt 0 ]; then
-              echo "Se encontraron $vulnerabilities vulnerabilidades críticas. El proyecto no cumple con los estándares de seguridad."
+              echo "Se encontraron $vulnerabilities vulnerabilidades. El proyecto no cumple con los estándares de seguridad."
               exit 1
             else
-              echo "No se encontraron vulnerabilidades críticas ($vulnerabilities vulnerabilidades) . El proyecto cumple con el Quality Gate." 
+              echo "No se encontraron vulnerabilidades ($vulnerabilities vulnerabilidades) . El proyecto cumple con el Quality Gate." 
             fi
           fi
 
@@ -161,3 +161,4 @@ jobs:
       - name: Run Trivy Scan
         run: |
           trivy image rmedinam91/laboratorio-final-devsecops:${{ github.sha }}
+          
