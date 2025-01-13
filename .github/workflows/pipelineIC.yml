@@ -20,7 +20,7 @@ jobs:
       - name: Set Environment Variables
         run: |
           echo "BRANCH_NAME=${{ github.ref_name }}" >> $GITHUB_ENV
-          echo "ORG_NAME=nhuly-devsecops" >> $GITHUB_ENV
+          echo "ORG_NAME=rmedina-cursodevsecopsusach" >> $GITHUB_ENV
 
 
       - name: Variable
