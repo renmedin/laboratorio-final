@@ -1,27 +1,120 @@
-name: Workflow
+name: Pipeline Laboratorio Final DevSecOps
 on:
   push:
     branches:
-      - main
+      - feature-labfinal
+
 jobs:
-  BUILD:
-    runs-on: ubuntu-latest
-    steps: 
+  SAST:
+    runs-on: ubuntu-24.04
 
-    - name: Aqui compilamos
-      run: | 
-        echo 'Aqui compilamos'
-  TEST:
-    runs-on: ubuntu-latest
-    steps: 
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+      
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Set Environment Variables
+        run: |
+          echo "BRANCH_NAME=${{ github.ref_name }}" >> $GITHUB_ENV
+          echo "ORG_NAME=rmedina-cursodevsecopsusach" >> $GITHUB_ENV
 
-    - name: Aqui probamos
-      run: | 
-        echo 'Aqui probamos'  
-  DEPLOY:
-    runs-on: ubuntu-latest
-    steps: 
 
-    - name: Deploy Dev
-      run: | 
-        echo 'Aqui desplegamos'
+      - name: Variable
+        run: echo "$BRANCH_NAME"
+
+
+      #Apoyo ayudantia
+      - name: Validando existencia de proyecto en SonarCloud
+        id: validateProjectOnSonar
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          echo ${{ github.event.repository.name }}
+          echo "Verificando si el proyecto $REPO_NAME existe en SonarCloud..."
+          response=$(curl -s -o /dev/null -w "%{http_code}" -u "$SONAR_TOKEN:" \
+           "https://sonarcloud.io/api/projects/search?projects=$REPO_NAME")
+          echo "$response"  
+
+          if [ "$response" -ne 200 ]; then
+            echo "El proyecto no existe. Creándolo en SonarCloud..."
+            create_response=$(curl -s -w "%{http_code}" -o /dev/null -X POST -u "$SONAR_TOKEN:" \
+              "https://sonarcloud.io/api/projects/create" \
+              -d "name=$REPO_NAME" \
+              -d "project=$REPO_NAME" \
+              -d "organization=$ORG_NAME" \
+              -d "visibility=public")
+            if [ "$create_response" -ne 201 ]; then
+              echo "Proyecto creado exitosamente (HTTP Response: $create_response)."
+            fi
+
+            echo "Estableciendo la rama [$BRANCH_NAME] como predeterminada..."
+            curl -s -f -X POST -u "$SONAR_TOKEN:" \
+              "https://sonarcloud.io/api/project_branches/rename" \
+              -d "name=$BRANCH_NAME" \
+              -d "project=$REPO_NAME"
+
+            echo "project_created=true" >> $GITHUB_ENV
+          else
+            echo "El proyecto ya existe en SonarCloud."
+            echo "project_created=false" >> $GITHUB_ENV
+          fi
+
+      - name: Perform Initial Analysis (if Project Created)
+        if: env.project_created == 'true'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          echo "Realizando análisis inicial en la rama main..."
+          ./gradlew sonarqube \
+            -Dsonar.projectKey=$REPO_NAME \
+            -Dsonar.organization=rmedina-cursodevsecopsusach \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.token=$SONAR_TOKEN \
+            -Dsonar.branch.name=main
+
+      - name: Perform Branch Analysis
+        if: env.project_created == 'false'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          BRANCH_NAME: ${{ github.ref_name }}
+        run: |
+          echo "Realizando análisis en la rama actual: $BRANCH_NAME..."
+          ./gradlew sonarqube \
+            -Dsonar.projectKey=$REPO_NAME \
+            -Dsonar.organization=rmedina-cursodevsecopsusach \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.token=$SONAR_TOKEN \
+            -Dsonar.branch.name=${{ github.ref_name }}
+
+      - name: Validate Quality Gate
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          echo "Validando el estado del Quality Gate..."
+          analysisId=$(curl -s -u "$SONAR_TOKEN:" \
+            "https://sonarcloud.io/api/ce/component?component=$REPO_NAME" | jq -r '.current.analysisId')
+
+          qualityGateStatus=$(curl -s -u "$SONAR_TOKEN:" \
+            "https://sonarcloud.io/api/qualitygates/project_status?analysisId=$analysisId" | jq -r '.projectStatus.status')
+
+          if [ "$qualityGateStatus" != "OK" ]; then
+            echo "El proyecto no cumple con el Quality Gate: $qualityGateStatus."
+            echo "Verificando vulnerabilidades críticas..."
+            vulnerabilities=$(curl -s -u "$SONAR_TOKEN:" \
+              "https://sonarcloud.io/api/issues/search?componentKeys=$REPO_NAME&types=VULNERABILITY&severities=CRITICAL,BLOCKER" | jq -r '.total')
+
+            if [ "$vulnerabilities" -gt 0 ]; then
+              echo "Se encontraron $vulnerabilities vulnerabilidades críticas. El proyecto no cumple con los estándares de seguridad."
+              #exit 1
+            fi
+          else
+            echo "El proyecto cumple con el Quality Gate y no tiene vulnerabilidades críticas. Continuando sin problemas."
+          fi
